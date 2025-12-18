@@ -1,4 +1,3 @@
-
 import { GoogleGenAI } from "@google/genai";
 import { Transaction, BankAccount } from "./types";
 
@@ -39,9 +38,10 @@ export const getFinancialAdvice = async (
       請使用繁體中文，語氣親切且專業，字數控制在 300 字以內。
     `;
 
+    // 使用正確的 generateContent 調用方式
     const response = await ai.models.generateContent({
       model: 'gemini-3-pro-preview',
-      contents: [{ parts: [{ text: prompt }] }],
+      contents: prompt,
     });
 
     return response.text || "AI 暫時無法生成建議，請稍後再試。";
