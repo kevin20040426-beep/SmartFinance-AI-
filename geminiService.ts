@@ -44,8 +44,6 @@ export const getFinancialAdvice = async (
       contents: prompt,
       config: {
         temperature: 0.7,
-        topK: 40,
-        topP: 0.95,
       }
     });
 
@@ -55,4 +53,3 @@ export const getFinancialAdvice = async (
     return "連線 AI 服務時發生錯誤。";
   }
 };
-
