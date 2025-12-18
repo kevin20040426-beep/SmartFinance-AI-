@@ -7,8 +7,8 @@ export const getFinancialAdvice = async (
   transactions: Transaction[]
 ): Promise<string> => {
   const apiKey = process.env.API_KEY;
-  if (!apiKey) {
-    return "系統未設定 API KEY，無法提供 AI 建議。";
+  if (!apiKey || apiKey === "undefined") {
+    return "系統未偵測到有效的 API KEY。請確保在環境變數中設定了 API_KEY。";
   }
 
   try {
@@ -41,15 +41,12 @@ export const getFinancialAdvice = async (
 
     const response = await ai.models.generateContent({
       model: 'gemini-3-pro-preview',
-      contents: prompt,
-      config: {
-        temperature: 0.7,
-      }
+      contents: [{ parts: [{ text: prompt }] }],
     });
 
-    return response.text || "AI 無法生成建議，請稍後再試。";
+    return response.text || "AI 暫時無法生成建議，請稍後再試。";
   } catch (error) {
     console.error("Gemini AI Error:", error);
-    return "連線 AI 服務時發生錯誤。";
+    return "與 AI 服務連線時發生錯誤，請確認網路狀態或 API KEY 是否正確。";
   }
 };
