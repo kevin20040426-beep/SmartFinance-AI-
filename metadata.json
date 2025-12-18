@@ -1,0 +1,5 @@
+{
+  "name": "SmartFinance AI - 個人化財務管理系統",
+  "description": "一個結合 Gemini 3 Pro AI 技術的個人化財務管理平台，支援多銀行帳戶管理、收支追蹤與智慧財務建議。",
+  "requestFramePermissions": []
+}
