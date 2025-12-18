@@ -13,7 +13,6 @@ export const getFinancialAdvice = async (
 
   try {
     const ai = new GoogleGenAI({ apiKey });
-    const model = 'gemini-3-pro-preview';
     
     const summary = {
       totalBalance: accounts.reduce((acc, curr) => acc + curr.balance, 0),
@@ -41,7 +40,7 @@ export const getFinancialAdvice = async (
     `;
 
     const response = await ai.models.generateContent({
-      model,
+      model: 'gemini-3-pro-preview',
       contents: prompt,
       config: {
         temperature: 0.7,
@@ -56,3 +55,4 @@ export const getFinancialAdvice = async (
     return "連線 AI 服務時發生錯誤。";
   }
 };
+
