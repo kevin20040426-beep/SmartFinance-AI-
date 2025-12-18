@@ -8,9 +8,9 @@ let auth: Auth | null = null;
 let db: Firestore | null = null;
 let isOfflineMode = false;
 
+const configStr = process.env.FIREBASE_CONFIG;
+
 try {
-  const configStr = process.env.FIREBASE_CONFIG;
-  // 檢查是否為有效的 JSON 字串，避免 "undefined" 或空字串
   if (configStr && configStr !== "undefined" && configStr.trim() !== "") {
     const firebaseConfig = JSON.parse(configStr);
     if (!getApps().length) {
@@ -22,11 +22,11 @@ try {
     db = getFirestore(app);
     console.log("Firebase initialized successfully.");
   } else {
-    console.warn("Firebase config is empty or invalid. Running in Offline Mode.");
+    console.warn("No valid FIREBASE_CONFIG found. Operating in local-only demo mode.");
     isOfflineMode = true;
   }
 } catch (error) {
-  console.error("Failed to initialize Firebase:", error);
+  console.error("Firebase initialization failed. Falling back to offline mode:", error);
   isOfflineMode = true;
 }
 

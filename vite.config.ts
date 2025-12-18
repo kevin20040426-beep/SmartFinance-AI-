@@ -10,12 +10,19 @@ export default defineConfig({
     'process.env.FIREBASE_CONFIG': JSON.stringify(process.env.FIREBASE_CONFIG)
   },
   build: {
+    outDir: 'dist',
     minify: 'terser',
-    terserOptions: {
-      compress: {
-        drop_console: false,
-        drop_debugger: true
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor': ['react', 'react-dom'],
+          'firebase': ['firebase/app', 'firebase/auth', 'firebase/firestore']
+        }
       }
     }
+  },
+  server: {
+    port: 3000,
+    strictPort: true
   }
 });
