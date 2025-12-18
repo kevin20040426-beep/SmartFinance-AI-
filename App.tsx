@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { 
   onAuthStateChanged, 
@@ -48,14 +47,14 @@ import {
 } from './types';
 import { getFinancialAdvice } from './geminiService';
 
-// --- Sub-components ---
-
+// --- Auth Component ---
 const AuthScreen: React.FC<{ 
   onToggle: () => void, 
   isLogin: boolean, 
   onSubmit: (e: React.FormEvent<HTMLFormElement>) => void,
-  error: string 
-}> = ({ onToggle, isLogin, onSubmit, error }) => (
+  error: string,
+  onDemo: () => void
+}> = ({ onToggle, isLogin, onSubmit, error, onDemo }) => (
   <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-blue-900 to-indigo-950 px-4">
     <div className="bg-white/95 backdrop-blur-md p-8 rounded-3xl shadow-2xl w-full max-w-md border border-white/20">
       <div className="flex flex-col items-center mb-10">
@@ -65,6 +64,12 @@ const AuthScreen: React.FC<{
         <h1 className="text-3xl font-extrabold text-slate-800 tracking-tight">SmartFinance AI</h1>
         <p className="text-slate-500 font-medium">智能理財，從今天開始</p>
       </div>
+
+      {isOfflineMode && (
+        <div className="mb-6 p-4 bg-amber-50 border border-amber-100 rounded-xl text-amber-700 text-sm font-medium">
+          偵測到離線模式，系統將自動以訪客身分啟動預覽。
+        </div>
+      )}
 
       <form onSubmit={onSubmit} className="space-y-5">
         <div>
@@ -92,11 +97,19 @@ const AuthScreen: React.FC<{
         </div>}
         <button 
           type="submit" 
-          className="w-full bg-blue-600 text-white py-3.5 rounded-xl font-bold hover:bg-blue-700 active:scale-[0.98] transition-all shadow-xl shadow-blue-600/20 mt-2"
+          disabled={isOfflineMode}
+          className="w-full bg-blue-600 text-white py-3.5 rounded-xl font-bold hover:bg-blue-700 active:scale-[0.98] transition-all shadow-xl shadow-blue-600/20 mt-2 disabled:opacity-50"
         >
           {isLogin ? '立即登入' : '建立帳號'}
         </button>
       </form>
+
+      <button 
+        onClick={onDemo}
+        className="w-full mt-4 bg-slate-800 text-white py-3.5 rounded-xl font-bold hover:bg-slate-900 transition-all"
+      >
+        直接進入預覽模式 (訪客)
+      </button>
 
       <div className="mt-8 text-center">
         <button 
@@ -155,10 +168,10 @@ const Sidebar: React.FC<{
       <div className="p-6 mt-auto border-t border-slate-100">
         <div className="bg-slate-50 p-4 rounded-2xl mb-6 flex items-center gap-3">
           <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-bold">
-            {userEmail[0].toUpperCase()}
+            {userEmail[0]?.toUpperCase() || 'V'}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-xs font-bold text-slate-800 truncate">{userEmail.split('@')[0]}</p>
+            <p className="text-xs font-bold text-slate-800 truncate">{userEmail.split('@')[0] || 'Guest'}</p>
             <p className="text-[10px] text-slate-400 truncate">{userEmail}</p>
           </div>
         </div>
@@ -174,10 +187,9 @@ const Sidebar: React.FC<{
   );
 };
 
-// --- Main App Component ---
-
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
+  const [isDemoUser, setIsDemoUser] = useState(false);
   const [loading, setLoading] = useState(true);
   const [isLoginView, setIsLoginView] = useState(true);
   const [authError, setAuthError] = useState('');
@@ -188,12 +200,11 @@ export default function App() {
   const [aiAdvice, setAiAdvice] = useState<string>('');
   const [aiLoading, setAiLoading] = useState(false);
 
-  // Modal states
   const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
   const [isTxModalOpen, setIsTxModalOpen] = useState(false);
 
   useEffect(() => {
-    if (!auth) {
+    if (!auth || isOfflineMode) {
       setLoading(false);
       return;
     }
@@ -205,24 +216,26 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!user || !db) {
-      if (isOfflineMode || !db) {
-        setAccounts([
-          { id: '1', name: '主要現金', balance: 52400, color: 'bg-blue-500' },
-          { id: '2', name: '國泰帳戶', balance: 185000, color: 'bg-green-500' }
-        ]);
-        setTransactions([
-          { id: 't1', accountId: '1', amount: 120, type: TransactionType.EXPENSE, category: '飲食', note: '路易莎咖啡', date: new Date().toISOString() },
-          { id: 't2', accountId: '2', amount: 48000, type: TransactionType.INCOME, category: '薪資', note: '10月薪資', date: new Date().toISOString() }
-        ]);
-      }
+    // 預覽數據
+    const demoAccounts: BankAccount[] = [
+      { id: '1', name: '主要現金', balance: 52400, color: 'bg-blue-500' },
+      { id: '2', name: '國泰帳戶', balance: 185000, color: 'bg-green-500' }
+    ];
+    const demoTx: Transaction[] = [
+      { id: 't1', accountId: '1', amount: 120, type: TransactionType.EXPENSE, category: '飲食', note: '路易莎咖啡', date: new Date().toISOString() },
+      { id: 't2', accountId: '2', amount: 48000, type: TransactionType.INCOME, category: '薪資', note: '10月薪資', date: new Date().toISOString() }
+    ];
+
+    if (isDemoUser || !user || !db) {
+      setAccounts(demoAccounts);
+      setTransactions(demoTx);
       return;
     }
 
     const qAccounts = query(collection(db, 'accounts'), where('userId', '==', user.uid));
     const unsubscribeAccounts = onSnapshot(qAccounts, (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as BankAccount));
-      setAccounts(data);
+      setAccounts(data.length > 0 ? data : demoAccounts);
     });
 
     const qTx = query(
@@ -233,14 +246,14 @@ export default function App() {
     );
     const unsubscribeTx = onSnapshot(qTx, (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Transaction));
-      setTransactions(data);
+      setTransactions(data.length > 0 ? data : demoTx);
     });
 
     return () => {
       unsubscribeAccounts();
       unsubscribeTx();
     };
-  }, [user]);
+  }, [user, isDemoUser]);
 
   const handleAuth = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -261,62 +274,67 @@ export default function App() {
     }
   };
 
-  const handleLogout = () => auth && signOut(auth);
+  const handleLogout = () => {
+    if (isDemoUser) setIsDemoUser(false);
+    if (auth) signOut(auth);
+    setUser(null);
+  };
 
   const addAccount = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!user || !db) return;
     const formData = new FormData(e.currentTarget);
-    const name = formData.get('name') as string;
-    const balance = parseFloat(formData.get('balance') as string);
-    const color = formData.get('color') as string;
+    const newAcc: BankAccount = {
+      id: Math.random().toString(36).substr(2, 9),
+      name: formData.get('name') as string,
+      balance: parseFloat(formData.get('balance') as string),
+      color: formData.get('color') as string,
+    };
 
-    await addDoc(collection(db, 'accounts'), {
-      name,
-      balance,
-      color,
-      userId: user.uid,
-      createdAt: new Date().toISOString()
-    });
+    if (db && user && !isDemoUser) {
+      await addDoc(collection(db, 'accounts'), { ...newAcc, userId: user.uid, createdAt: new Date().toISOString() });
+    } else {
+      setAccounts([...accounts, newAcc]);
+    }
     setIsAccountModalOpen(false);
   };
 
   const deleteAccount = async (id: string) => {
-    if (!db) return;
     if (confirm('確定要刪除此帳戶嗎？')) {
-      await deleteDoc(doc(db, 'accounts', id));
+      if (db && user && !isDemoUser) {
+        await deleteDoc(doc(db, 'accounts', id));
+      } else {
+        setAccounts(accounts.filter(a => a.id !== id));
+      }
     }
   };
 
   const addTransaction = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!user || !db) return;
     const formData = new FormData(e.currentTarget);
-    const accountId = formData.get('accountId') as string;
     const amount = parseFloat(formData.get('amount') as string);
     const type = formData.get('type') as TransactionType;
-    const category = formData.get('category') as string;
-    const note = formData.get('note') as string;
-    const date = formData.get('date') as string;
+    const accountId = formData.get('accountId') as string;
 
-    await addDoc(collection(db, 'transactions'), {
+    const newTx: any = {
       accountId,
       amount,
       type,
-      category,
-      note,
-      date,
-      userId: user.uid
-    });
+      category: formData.get('category') as string,
+      note: formData.get('note') as string,
+      date: formData.get('date') as string,
+    };
 
-    const account = accounts.find(a => a.id === accountId);
-    if (account) {
-      const newBalance = type === TransactionType.INCOME 
-        ? account.balance + amount 
-        : account.balance - amount;
-      await updateDoc(doc(db, 'accounts', accountId), { balance: newBalance });
+    if (db && user && !isDemoUser) {
+      await addDoc(collection(db, 'transactions'), { ...newTx, userId: user.uid });
+      const account = accounts.find(a => a.id === accountId);
+      if (account) {
+        const newBalance = type === TransactionType.INCOME ? account.balance + amount : account.balance - amount;
+        await updateDoc(doc(db, 'accounts', accountId), { balance: newBalance });
+      }
+    } else {
+      setTransactions([{ id: Date.now().toString(), ...newTx }, ...transactions]);
+      setAccounts(accounts.map(a => a.id === accountId ? { ...a, balance: type === TransactionType.INCOME ? a.balance + amount : a.balance - amount } : a));
     }
-
     setIsTxModalOpen(false);
   };
 
@@ -332,18 +350,19 @@ export default function App() {
     return (
       <div className="h-screen flex flex-col items-center justify-center bg-slate-50">
         <Loader2 className="w-12 h-12 text-blue-600 animate-spin mb-4" />
-        <p className="text-slate-500 font-medium animate-pulse">正在安全加載您的財務數據...</p>
+        <p className="text-slate-500 font-medium">正在載入您的財務空間...</p>
       </div>
     );
   }
 
-  if (!user) {
+  if (!user && !isDemoUser) {
     return (
       <AuthScreen 
         isLogin={isLoginView} 
         onToggle={() => setIsLoginView(!isLoginView)} 
         onSubmit={handleAuth} 
-        error={authError} 
+        error={authError}
+        onDemo={() => setIsDemoUser(true)}
       />
     );
   }
@@ -362,380 +381,208 @@ export default function App() {
         currentView={view} 
         setView={setView} 
         onLogout={handleLogout} 
-        userEmail={user.email || ''} 
+        userEmail={user?.email || 'Demo User'} 
       />
 
       <main className="flex-1 p-6 lg:p-12 overflow-y-auto">
         <div className="max-w-6xl mx-auto">
-          
-          {/* Dashboard View */}
           {view === 'dashboard' && (
             <div className="space-y-8 animate-in fade-in slide-in-from-bottom-6 duration-700">
               <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
-                  <h2 className="text-3xl font-black text-slate-900 tracking-tight">你好, {user.email?.split('@')[0]} 👋</h2>
-                  <p className="text-slate-500 mt-1 font-medium">這是您目前的智慧財務概況</p>
+                  <h2 className="text-3xl font-black text-slate-900 tracking-tight">你好, {user?.email?.split('@')[0] || '投資家'} 👋</h2>
+                  <p className="text-slate-500 mt-1 font-medium">這是您目前的財務概況</p>
                 </div>
-                <div className="flex gap-3">
-                  <button 
-                    onClick={() => setIsTxModalOpen(true)}
-                    className="bg-blue-600 text-white px-6 py-3 rounded-2xl flex items-center gap-2 hover:bg-blue-700 hover:shadow-lg hover:shadow-blue-600/30 transition-all font-bold"
-                  >
-                    <Plus className="w-5 h-5" />
-                    新增交易
-                  </button>
-                </div>
+                <button 
+                  onClick={() => setIsTxModalOpen(true)}
+                  className="bg-blue-600 text-white px-6 py-3 rounded-2xl flex items-center gap-2 hover:bg-blue-700 transition-all font-bold shadow-lg shadow-blue-600/20"
+                >
+                  <Plus className="w-5 h-5" /> 新增交易
+                </button>
               </header>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 relative overflow-hidden group">
-                  <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:scale-110 transition-transform">
-                    <Wallet className="w-16 h-16" />
-                  </div>
+                <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 relative group">
+                  <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:scale-110 transition-transform"><Wallet className="w-16 h-16" /></div>
                   <p className="text-slate-400 text-sm font-bold uppercase tracking-wider mb-2">總資產淨值</p>
                   <h3 className="text-4xl font-black text-slate-900 tracking-tighter">${totalBalance.toLocaleString()}</h3>
                 </div>
                 <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 flex items-center justify-between">
                   <div>
-                    <p className="text-slate-400 text-sm font-bold uppercase tracking-wider mb-2">本月累計收入</p>
+                    <p className="text-slate-400 text-sm font-bold uppercase tracking-wider mb-2">本月收入</p>
                     <h3 className="text-3xl font-black text-emerald-600 tracking-tighter">+${monthIncome.toLocaleString()}</h3>
                   </div>
-                  <div className="p-4 bg-emerald-50 rounded-2xl text-emerald-600">
-                    <TrendingUp className="w-8 h-8" />
-                  </div>
+                  <TrendingUp className="w-8 h-8 text-emerald-500 opacity-20" />
                 </div>
                 <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 flex items-center justify-between">
                   <div>
-                    <p className="text-slate-400 text-sm font-bold uppercase tracking-wider mb-2">本月累計支出</p>
+                    <p className="text-slate-400 text-sm font-bold uppercase tracking-wider mb-2">本月支出</p>
                     <h3 className="text-3xl font-black text-rose-600 tracking-tighter">-${monthExpense.toLocaleString()}</h3>
                   </div>
-                  <div className="p-4 bg-rose-50 rounded-2xl text-rose-600">
-                    <TrendingDown className="w-8 h-8" />
-                  </div>
+                  <TrendingDown className="w-8 h-8 text-rose-500 opacity-20" />
                 </div>
               </div>
 
+              {/* AI Card */}
+              <div className="p-8 rounded-[2.5rem] bg-gradient-to-br from-blue-600 to-indigo-700 shadow-2xl flex flex-col md:flex-row items-center justify-between gap-8 text-white relative overflow-hidden">
+                <div className="absolute inset-0 bg-white opacity-5 mix-blend-overlay"></div>
+                <div className="relative z-10 text-center md:text-left">
+                  <h3 className="text-3xl font-black mb-3">您的財務診斷報告已準備好</h3>
+                  <p className="text-blue-100 font-medium">使用 Gemini 3 AI 即時分析您的收支平衡並提供專業建議。</p>
+                </div>
+                <button 
+                  onClick={askAI}
+                  disabled={aiLoading}
+                  className="relative z-10 bg-white text-blue-700 px-8 py-4 rounded-2xl font-black hover:scale-105 transition-all flex items-center gap-2 disabled:opacity-70"
+                >
+                  {aiLoading ? <Loader2 className="w-6 h-6 animate-spin" /> : <Sparkles className="w-6 h-6" />}
+                  開始 AI 分析
+                </button>
+              </div>
+              
               <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
                 <section>
-                  <div className="flex justify-between items-center mb-6">
-                    <h4 className="text-xl font-black text-slate-800 tracking-tight">資產帳戶</h4>
-                    <button onClick={() => setView('accounts')} className="text-sm font-bold text-blue-600 hover:underline">管理全部</button>
-                  </div>
+                  <h4 className="text-xl font-black text-slate-800 mb-6 flex items-center gap-2"><CreditCard className="w-5 h-5 text-blue-500" /> 資產帳戶</h4>
                   <div className="space-y-4">
-                    {accounts.length === 0 && <div className="p-12 text-center bg-white rounded-3xl border-2 border-dashed border-slate-200 text-slate-400">尚未新增任何帳戶</div>}
-                    {accounts.slice(0, 4).map(acc => (
-                      <div key={acc.id} className="bg-white p-5 rounded-3xl border border-slate-100 flex items-center gap-5 hover:border-blue-200 transition-colors shadow-sm group">
-                        <div className={`w-14 h-14 rounded-2xl ${acc.color} flex items-center justify-center text-white shadow-lg`}>
-                          <CreditCard className="w-7 h-7" />
-                        </div>
-                        <div className="flex-1">
-                          <p className="font-bold text-slate-900">{acc.name}</p>
-                          <p className="text-xs font-medium text-slate-400">目前餘額</p>
-                        </div>
+                    {accounts.map(acc => (
+                      <div key={acc.id} className="bg-white p-5 rounded-3xl border border-slate-100 flex items-center gap-5 hover:border-blue-200 transition-all shadow-sm group">
+                        <div className={`w-14 h-14 rounded-2xl ${acc.color} flex items-center justify-center text-white shadow-lg`}><CreditCard className="w-7 h-7" /></div>
+                        <div className="flex-1"><p className="font-bold text-slate-900">{acc.name}</p></div>
                         <p className="font-black text-xl text-slate-800 tracking-tight">${acc.balance.toLocaleString()}</p>
                       </div>
                     ))}
                   </div>
                 </section>
-
                 <section>
-                  <div className="flex justify-between items-center mb-6">
-                    <h4 className="text-xl font-black text-slate-800 tracking-tight">近期活動</h4>
-                    <button onClick={() => setView('transactions')} className="text-sm font-bold text-blue-600 hover:underline">查看完整明細</button>
-                  </div>
-                  <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden">
-                    {transactions.length === 0 && <div className="p-12 text-center text-slate-400">目前沒有交易紀錄</div>}
-                    <div className="divide-y divide-slate-50">
-                      {transactions.slice(0, 5).map(tx => (
-                        <div key={tx.id} className="p-6 flex items-center justify-between hover:bg-slate-50/50 transition-colors">
-                          <div className="flex items-center gap-4">
-                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${tx.type === TransactionType.INCOME ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-50 text-slate-600'}`}>
-                              <Sparkles className="w-5 h-5" />
-                            </div>
-                            <div>
-                              <p className="font-bold text-slate-900">{tx.category}</p>
-                              <p className="text-xs font-medium text-slate-400">{new Date(tx.date).toLocaleDateString()} · {tx.note || '無備註'}</p>
-                            </div>
+                  <h4 className="text-xl font-black text-slate-800 mb-6 flex items-center gap-2"><ArrowLeftRight className="w-5 h-5 text-indigo-500" /> 近期活動</h4>
+                  <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden divide-y divide-slate-50">
+                    {transactions.slice(0, 5).map(tx => (
+                      <div key={tx.id} className="p-6 flex items-center justify-between hover:bg-slate-50/50 transition-colors">
+                        <div className="flex items-center gap-4">
+                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${tx.type === TransactionType.INCOME ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-50 text-slate-600'}`}><Sparkles className="w-5 h-5" /></div>
+                          <div>
+                            <p className="font-bold text-slate-900">{tx.category}</p>
+                            <p className="text-xs font-medium text-slate-400">{tx.note || '無備註'}</p>
                           </div>
-                          <p className={`font-black text-lg tracking-tight ${tx.type === TransactionType.INCOME ? 'text-emerald-600' : 'text-slate-900'}`}>
-                            {tx.type === TransactionType.INCOME ? '+' : '-'}${tx.amount.toLocaleString()}
-                          </p>
                         </div>
-                      ))}
-                    </div>
+                        <p className={`font-black text-lg ${tx.type === TransactionType.INCOME ? 'text-emerald-600' : 'text-slate-900'}`}>
+                          {tx.type === TransactionType.INCOME ? '+' : '-'}${tx.amount.toLocaleString()}
+                        </p>
+                      </div>
+                    ))}
                   </div>
                 </section>
               </div>
-
-              {/* AI Advisor Card - Enhanced Design */}
-              <div className="relative p-1 rounded-[2.5rem] bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-700 shadow-2xl shadow-blue-600/20 overflow-hidden">
-                <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-20"></div>
-                <div className="relative p-8 md:p-10 flex flex-col md:flex-row items-center justify-between gap-8">
-                  <div className="text-center md:text-left">
-                    <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/20 text-white text-xs font-black uppercase tracking-widest mb-4 backdrop-blur-md">
-                      <BrainCircuit className="w-4 h-4" /> Powered by Gemini 3 Pro
-                    </div>
-                    <h3 className="text-3xl md:text-4xl font-black text-white tracking-tighter mb-4 leading-tight">
-                      準備好優化您的財務健康了嗎？
-                    </h3>
-                    <p className="text-blue-100 font-medium max-w-lg text-lg">
-                      Gemini AI 能即時分析您的支出趨勢，提供精準的儲蓄建議與風險預警。
-                    </p>
-                  </div>
-                  <button 
-                    onClick={askAI}
-                    disabled={aiLoading}
-                    className="w-full md:w-auto bg-white text-blue-700 px-10 py-5 rounded-[1.5rem] font-black text-lg hover:bg-blue-50 active:scale-95 transition-all shadow-xl flex items-center justify-center gap-3 disabled:opacity-70 group"
-                  >
-                    {aiLoading ? (
-                      <Loader2 className="w-6 h-6 animate-spin" />
-                    ) : (
-                      <>
-                        <Sparkles className="w-6 h-6 group-hover:rotate-12 transition-transform" />
-                        開始 AI 診斷
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
             </div>
           )}
 
-          {/* Accounts View */}
           {view === 'accounts' && (
-            <div className="space-y-8 animate-in fade-in slide-in-from-bottom-6 duration-700">
-              <div className="flex justify-between items-center">
-                <h2 className="text-3xl font-black text-slate-900 tracking-tight">我的帳戶</h2>
-                <button 
-                  onClick={() => setIsAccountModalOpen(true)}
-                  className="bg-blue-600 text-white px-6 py-3 rounded-2xl flex items-center gap-2 font-bold shadow-lg shadow-blue-600/20"
-                >
-                  <Plus className="w-5 h-5" /> 新增帳戶
-                </button>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+             <div className="space-y-8 animate-in fade-in slide-in-from-bottom-6 duration-700">
+               <div className="flex justify-between items-center">
+                 <h2 className="text-3xl font-black text-slate-900 tracking-tight">資產管理</h2>
+                 <button onClick={() => setIsAccountModalOpen(true)} className="bg-blue-600 text-white px-6 py-3 rounded-2xl font-bold"><Plus className="w-5 h-5" /></button>
+               </div>
+               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                 {accounts.map(acc => (
-                  <div key={acc.id} className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all relative group">
-                    <button 
-                      onClick={() => deleteAccount(acc.id)}
-                      className="absolute top-6 right-6 p-2 bg-slate-50 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-xl opacity-0 group-hover:opacity-100 transition-all"
-                    >
-                      <Trash2 className="w-5 h-5" />
-                    </button>
-                    <div className={`w-16 h-16 ${acc.color} rounded-2xl mb-6 flex items-center justify-center text-white shadow-xl`}>
-                      <CreditCard className="w-8 h-8" />
-                    </div>
+                  <div key={acc.id} className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm relative group">
+                    <button onClick={() => deleteAccount(acc.id)} className="absolute top-6 right-6 p-2 text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"><Trash2 className="w-5 h-5" /></button>
+                    <div className={`w-16 h-16 ${acc.color} rounded-2xl mb-6 flex items-center justify-center text-white shadow-xl`}><CreditCard className="w-8 h-8" /></div>
                     <h3 className="text-xl font-black text-slate-900">{acc.name}</h3>
-                    <p className="text-slate-400 font-bold text-xs uppercase tracking-widest mt-1 mb-4">Savings Account</p>
-                    <p className="text-3xl font-black text-slate-900 tracking-tighter">${acc.balance.toLocaleString()}</p>
+                    <p className="text-3xl font-black text-slate-900 mt-4 tracking-tighter">${acc.balance.toLocaleString()}</p>
                   </div>
                 ))}
-              </div>
-            </div>
+               </div>
+             </div>
           )}
 
-          {/* Transactions View */}
           {view === 'transactions' && (
-            <div className="space-y-8 animate-in fade-in slide-in-from-bottom-6 duration-700">
-              <div className="flex justify-between items-center">
-                <h2 className="text-3xl font-black text-slate-900 tracking-tight">交易紀錄</h2>
-                <button 
-                  onClick={() => setIsTxModalOpen(true)}
-                  className="bg-blue-600 text-white px-6 py-3 rounded-2xl flex items-center gap-2 font-bold shadow-lg shadow-blue-600/20"
-                >
-                  <Plus className="w-5 h-5" /> 記一筆
-                </button>
-              </div>
-              <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left">
-                    <thead>
-                      <tr className="bg-slate-50 text-slate-400 text-[10px] font-black uppercase tracking-[0.2em]">
-                        <th className="px-8 py-5">日期</th>
-                        <th className="px-8 py-5">類型/分類</th>
-                        <th className="px-8 py-5">帳戶來源</th>
-                        <th className="px-8 py-5">備註說明</th>
-                        <th className="px-8 py-5 text-right">金額 (TWD)</th>
+             <div className="space-y-8 animate-in fade-in slide-in-from-bottom-6 duration-700">
+               <h2 className="text-3xl font-black text-slate-900 tracking-tight">所有交易</h2>
+               <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden">
+                 <table className="w-full text-left">
+                   <thead className="bg-slate-50 text-[10px] font-black uppercase text-slate-400 tracking-widest">
+                     <tr><th className="px-8 py-5">日期</th><th className="px-8 py-5">分類</th><th className="px-8 py-5">備註</th><th className="px-8 py-5 text-right">金額</th></tr>
+                   </thead>
+                   <tbody className="divide-y divide-slate-50">
+                    {transactions.map(tx => (
+                      <tr key={tx.id} className="hover:bg-slate-50/50 transition-colors">
+                        <td className="px-8 py-6 text-sm font-bold text-slate-500">{new Date(tx.date).toLocaleDateString()}</td>
+                        <td className="px-8 py-6"><span className="px-3 py-1 bg-slate-100 rounded-full text-[10px] font-black">{tx.category}</span></td>
+                        <td className="px-8 py-6 text-sm text-slate-800">{tx.note}</td>
+                        <td className={`px-8 py-6 text-right font-black ${tx.type === TransactionType.INCOME ? 'text-emerald-600' : 'text-slate-900'}`}>{tx.type === TransactionType.INCOME ? '+' : '-'}${tx.amount.toLocaleString()}</td>
                       </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-50">
-                      {transactions.map(tx => (
-                        <tr key={tx.id} className="hover:bg-slate-50/50 transition-colors group">
-                          <td className="px-8 py-6 text-sm font-bold text-slate-500">{new Date(tx.date).toLocaleDateString()}</td>
-                          <td className="px-8 py-6">
-                            <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider ${tx.type === TransactionType.INCOME ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-700'}`}>
-                              {tx.category}
-                            </span>
-                          </td>
-                          <td className="px-8 py-6 text-sm font-bold text-slate-800">{accounts.find(a => a.id === tx.accountId)?.name || '未知帳戶'}</td>
-                          <td className="px-8 py-6 text-sm text-slate-400 font-medium italic">{tx.note || '—'}</td>
-                          <td className={`px-8 py-6 text-right font-black text-lg tracking-tight ${tx.type === TransactionType.INCOME ? 'text-emerald-600' : 'text-slate-900'}`}>
-                            {tx.type === TransactionType.INCOME ? '+' : '-'}${tx.amount.toLocaleString()}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
+                    ))}
+                   </tbody>
+                 </table>
+               </div>
+             </div>
           )}
 
-          {/* Reports View */}
           {view === 'reports' && (
             <div className="space-y-8 animate-in fade-in slide-in-from-bottom-6 duration-700">
-              <h2 className="text-3xl font-black text-slate-900 tracking-tight">財務診斷報告</h2>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100">
-                  <h4 className="text-lg font-black text-slate-800 mb-8">本月收支平衡</h4>
-                  <div className="h-64 flex items-end justify-center gap-12 pb-4 border-b border-slate-50">
-                    <div className="flex flex-col items-center gap-3">
-                      <div className="w-16 bg-emerald-500 rounded-2xl shadow-lg shadow-emerald-500/20 transition-all hover:scale-105" style={{height: `${Math.max(10, (monthIncome / (monthIncome + monthExpense)) * 200)}px`}}></div>
-                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">收入</span>
+               <h2 className="text-3xl font-black text-slate-900 tracking-tight">AI 財務診斷</h2>
+               {aiAdvice ? (
+                 <div className="bg-white p-10 rounded-[3rem] shadow-xl border border-blue-50 relative overflow-hidden">
+                    <div className="flex items-center gap-4 mb-8">
+                      <div className="bg-blue-600 p-3 rounded-2xl text-white shadow-lg"><BrainCircuit className="w-8 h-8" /></div>
+                      <div>
+                        <h3 className="text-2xl font-black text-slate-900">Gemini 智囊團分析</h3>
+                        <p className="text-blue-600 font-bold text-xs uppercase tracking-widest">Powered by Gemini 3 Flash</p>
+                      </div>
                     </div>
-                    <div className="flex flex-col items-center gap-3">
-                      <div className="w-16 bg-rose-500 rounded-2xl shadow-lg shadow-rose-500/20 transition-all hover:scale-105" style={{height: `${Math.max(10, (monthExpense / (monthIncome + monthExpense)) * 200)}px`}}></div>
-                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">支出</span>
+                    <div className="text-slate-700 text-lg leading-relaxed whitespace-pre-wrap font-medium">
+                      {aiAdvice}
                     </div>
-                  </div>
-                  <div className="mt-8 flex justify-between items-center text-sm">
-                    <p className="font-bold text-slate-500">儲蓄率</p>
-                    <p className="font-black text-blue-600 text-xl">{monthIncome > 0 ? Math.round(((monthIncome - monthExpense) / monthIncome) * 100) : 0}%</p>
-                  </div>
-                </div>
-
-                <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100">
-                  <h4 className="text-lg font-black text-slate-800 mb-8">主要支出類別</h4>
-                  <div className="space-y-6">
-                    {DEFAULT_CATEGORIES.filter(c => transactions.some(t => t.category === c && t.type === TransactionType.EXPENSE)).slice(0, 5).map(cat => {
-                      const amount = transactions
-                        .filter(t => t.category === cat && t.type === TransactionType.EXPENSE)
-                        .reduce((s, t) => s + t.amount, 0);
-                      const percent = monthExpense > 0 ? (amount / monthExpense) * 100 : 0;
-                      return (
-                        <div key={cat} className="group">
-                          <div className="flex justify-between text-sm mb-2">
-                            <span className="font-bold text-slate-700">{cat}</span>
-                            <span className="font-black text-slate-900">${amount.toLocaleString()}</span>
-                          </div>
-                          <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
-                            <div className="bg-blue-600 h-full rounded-full transition-all duration-1000 group-hover:bg-blue-500" style={{width: `${percent}%`}}></div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-
-              {aiAdvice && (
-                <div className="bg-white p-10 rounded-[3rem] shadow-2xl border border-slate-100 relative overflow-hidden animate-in zoom-in-95 duration-500">
-                  <div className="absolute top-0 right-0 p-10 opacity-5">
-                    <Sparkles className="w-40 h-40" />
-                  </div>
-                  <div className="flex items-center gap-4 mb-8">
-                    <div className="bg-blue-600 p-3 rounded-2xl text-white shadow-lg shadow-blue-600/30">
-                      <BrainCircuit className="w-8 h-8" />
-                    </div>
-                    <div>
-                      <h3 className="text-2xl font-black text-slate-900 tracking-tight">Gemini AI 診斷分析</h3>
-                      <p className="text-blue-600 font-bold text-xs uppercase tracking-widest">Personalized Financial Report</p>
-                    </div>
-                  </div>
-                  <div className="relative prose prose-slate max-w-none text-slate-700 text-lg leading-relaxed whitespace-pre-wrap font-medium">
-                    {aiAdvice}
-                  </div>
-                </div>
-              )}
+                 </div>
+               ) : (
+                 <div className="text-center py-20 bg-white rounded-[3rem] border border-dashed border-slate-200">
+                    <Sparkles className="w-16 h-16 text-slate-200 mx-auto mb-4" />
+                    <p className="text-slate-400 font-bold">目前尚無分析報告，點擊儀表板的分析按鈕開始。</p>
+                 </div>
+               )}
             </div>
           )}
-
         </div>
       </main>
 
-      {/* Account Modal - Enhanced Styled */}
+      {/* Modals - Simplified for fix */}
       {isAccountModalOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-[2.5rem] w-full max-w-md shadow-2xl animate-in zoom-in-95 duration-200 border border-white/20">
-            <div className="p-8 border-b border-slate-50 flex justify-between items-center">
-              <h3 className="text-2xl font-black text-slate-900">新增資產帳戶</h3>
-              <button onClick={() => setIsAccountModalOpen(false)} className="p-2 hover:bg-slate-50 rounded-xl transition-colors"><X className="w-6 h-6 text-slate-400" /></button>
-            </div>
-            <form onSubmit={addAccount} className="p-8 space-y-6">
-              <div>
-                <label className="block text-sm font-black text-slate-700 mb-2 uppercase tracking-widest">帳戶名稱</label>
-                <input name="name" required className="w-full px-5 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none transition-all" placeholder="例如：中信數位帳戶" />
-              </div>
-              <div>
-                <label className="block text-sm font-black text-slate-700 mb-2 uppercase tracking-widest">當前餘額 (TWD)</label>
-                <input name="balance" type="number" required className="w-full px-5 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none transition-all" placeholder="0" />
-              </div>
-              <div>
-                <label className="block text-sm font-black text-slate-700 mb-3 uppercase tracking-widest">識別色彩</label>
-                <div className="flex gap-3">
-                  {ACCOUNT_COLORS.map(c => (
-                    <label key={c} className="cursor-pointer">
-                      <input type="radio" name="color" value={c} defaultChecked={c === ACCOUNT_COLORS[0]} className="hidden peer" />
-                      <div className={`w-10 h-10 rounded-xl ${c} border-4 border-transparent peer-checked:border-slate-900 peer-checked:scale-110 shadow-sm transition-all`}></div>
-                    </label>
-                  ))}
-                </div>
-              </div>
-              <button type="submit" className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black text-lg hover:bg-slate-800 shadow-xl transition-all">確認建立</button>
+          <div className="bg-white rounded-[2rem] w-full max-w-md p-8 shadow-2xl">
+            <h3 className="text-2xl font-black mb-6">新增資產</h3>
+            <form onSubmit={addAccount} className="space-y-4">
+              <input name="name" required className="w-full p-4 bg-slate-50 rounded-xl border-none" placeholder="帳戶名稱" />
+              <input name="balance" type="number" required className="w-full p-4 bg-slate-50 rounded-xl border-none" placeholder="初始金額" />
+              <select name="color" className="w-full p-4 bg-slate-50 rounded-xl border-none">
+                {ACCOUNT_COLORS.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+              <button type="submit" className="w-full bg-blue-600 text-white py-4 rounded-xl font-bold">確認新增</button>
+              <button onClick={() => setIsAccountModalOpen(false)} type="button" className="w-full py-2 text-slate-400">取消</button>
             </form>
           </div>
         </div>
       )}
 
-      {/* Transaction Modal - Enhanced Styled */}
       {isTxModalOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-[2.5rem] w-full max-w-md shadow-2xl animate-in zoom-in-95 duration-200">
-            <div className="p-8 border-b border-slate-50 flex justify-between items-center">
-              <h3 className="text-2xl font-black text-slate-900">記錄收支</h3>
-              <button onClick={() => setIsTxModalOpen(false)} className="p-2 hover:bg-slate-50 rounded-xl transition-colors"><X className="w-6 h-6 text-slate-400" /></button>
-            </div>
-            <form onSubmit={addTransaction} className="p-8 space-y-6">
-              <div className="grid grid-cols-2 gap-4">
-                <label className="flex-1 cursor-pointer">
-                  <input type="radio" name="type" value={TransactionType.EXPENSE} defaultChecked className="hidden peer" />
-                  <div className="py-3 text-center rounded-2xl border-2 border-slate-100 peer-checked:border-rose-500 peer-checked:bg-rose-50 peer-checked:text-rose-600 transition-all font-black uppercase text-xs tracking-widest">支出</div>
-                </label>
-                <label className="flex-1 cursor-pointer">
-                  <input type="radio" name="type" value={TransactionType.INCOME} className="hidden peer" />
-                  <div className="py-3 text-center rounded-2xl border-2 border-slate-100 peer-checked:border-emerald-500 peer-checked:bg-emerald-50 peer-checked:text-emerald-600 transition-all font-black uppercase text-xs tracking-widest">收入</div>
-                </label>
+          <div className="bg-white rounded-[2rem] w-full max-w-md p-8 shadow-2xl">
+            <h3 className="text-2xl font-black mb-6">新增交易</h3>
+            <form onSubmit={addTransaction} className="space-y-4">
+              <div className="flex gap-2">
+                <label className="flex-1"><input type="radio" name="type" value={TransactionType.EXPENSE} defaultChecked /> 支出</label>
+                <label className="flex-1"><input type="radio" name="type" value={TransactionType.INCOME} /> 收入</label>
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest">金額</label>
-                  <input name="amount" type="number" required className="w-full px-5 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 font-bold" placeholder="0" />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest">分類</label>
-                  <select name="category" required className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none font-bold">
-                    {DEFAULT_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                </div>
-              </div>
-              <div>
-                <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest">選擇帳戶</label>
-                <select name="accountId" required className="w-full px-5 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none font-bold">
-                  {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-                </select>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest">日期</label>
-                  <input name="date" type="date" defaultValue={new Date().toISOString().split('T')[0]} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none font-bold" />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest">備註</label>
-                  <input name="note" className="w-full px-5 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none font-bold" placeholder="..." />
-                </div>
-              </div>
-              <button type="submit" className="w-full bg-blue-600 text-white py-4 rounded-2xl font-black text-lg hover:bg-blue-700 shadow-xl shadow-blue-600/20 transition-all">儲存明細</button>
+              <input name="amount" type="number" required className="w-full p-4 bg-slate-50 rounded-xl border-none" placeholder="金額" />
+              <select name="category" className="w-full p-4 bg-slate-50 rounded-xl border-none">
+                {DEFAULT_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+              <select name="accountId" className="w-full p-4 bg-slate-50 rounded-xl border-none">
+                {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+              </select>
+              <input name="date" type="date" defaultValue={new Date().toISOString().split('T')[0]} className="w-full p-4 bg-slate-50 rounded-xl border-none" />
+              <input name="note" className="w-full p-4 bg-slate-50 rounded-xl border-none" placeholder="備註" />
+              <button type="submit" className="w-full bg-blue-600 text-white py-4 rounded-xl font-bold">儲存明細</button>
+              <button onClick={() => setIsTxModalOpen(false)} type="button" className="w-full py-2 text-slate-400">取消</button>
             </form>
           </div>
         </div>

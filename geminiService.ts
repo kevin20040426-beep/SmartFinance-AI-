@@ -29,7 +29,7 @@ export const getFinancialAdvice = async (
       數據摘要：
       - 總資產: $${summary.totalBalance}
       - 帳戶數量: ${summary.accountCount}
-      - 最近 10 筆交易資料: ${JSON.stringify(summary.recentTransactions)}
+      - 最近交易: ${JSON.stringify(summary.recentTransactions)}
 
       請針對以下幾點提供建議：
       1. 現有的消費模式是否有異常？
@@ -39,7 +39,7 @@ export const getFinancialAdvice = async (
     `;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3-pro-preview',
+      model: 'gemini-3-flash-preview',
       contents: prompt,
     });
 
