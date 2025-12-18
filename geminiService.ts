@@ -38,7 +38,6 @@ export const getFinancialAdvice = async (
       請使用繁體中文，語氣親切且專業，字數控制在 300 字以內。
     `;
 
-    // 使用正確的 generateContent 調用方式
     const response = await ai.models.generateContent({
       model: 'gemini-3-pro-preview',
       contents: prompt,
