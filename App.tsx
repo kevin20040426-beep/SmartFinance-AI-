@@ -39,7 +39,9 @@ import {
   Heart,
   LineChart,
   ExternalLink,
-  Zap
+  Zap,
+  Sun,
+  Smile
 } from 'lucide-react';
 
 import { auth, db, isOfflineMode } from './firebase';
@@ -52,7 +54,7 @@ import {
   ACCOUNT_COLORS,
   StockMarketData
 } from './types';
-import { getFinancialAdvice, getDailyInspiration, getTaiwanStockAnalysis } from './geminiService';
+import { getFinancialAdvice, getDailyInspiration, getTaiwanStockAnalysis, getPositiveQuote } from './geminiService';
 
 // --- Auth Screen Component ---
 const AuthScreen: React.FC<{ 
@@ -153,10 +155,12 @@ export default function App() {
   const [accounts, setAccounts] = useState<BankAccount[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [dailyQuote, setDailyQuote] = useState<string>('');
+  const [positiveQuote, setPositiveQuote] = useState<string>('');
   const [stockData, setStockData] = useState<StockMarketData | null>(null);
   const [aiAdvice, setAiAdvice] = useState<string>('');
   const [aiLoading, setAiLoading] = useState(false);
   const [quoteLoading, setQuoteLoading] = useState(false);
+  const [posQuoteLoading, setPosQuoteLoading] = useState(false);
   const [stockLoading, setStockLoading] = useState(false);
 
   const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
@@ -181,6 +185,13 @@ export default function App() {
     setQuoteLoading(false);
   };
 
+  const refreshPosQuote = async () => {
+    setPosQuoteLoading(true);
+    const quote = await getPositiveQuote();
+    setPositiveQuote(quote);
+    setPosQuoteLoading(false);
+  };
+
   const refreshStocks = async () => {
     setStockLoading(true);
     const data = await getTaiwanStockAnalysis();
@@ -191,6 +202,7 @@ export default function App() {
   useEffect(() => {
     if (user || isDemoUser) {
       refreshQuote();
+      refreshPosQuote();
       refreshStocks();
     }
     
@@ -289,25 +301,46 @@ export default function App() {
         <div className="max-w-6xl mx-auto space-y-8">
           {view === 'dashboard' && (
             <div className="animate-in fade-in duration-500 space-y-8">
-              {/* Daily Quote Card */}
-              <div className="relative overflow-hidden bg-gradient-to-br from-indigo-50 to-blue-50 border border-blue-100 p-8 rounded-[2.5rem] shadow-sm group">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 text-blue-600 font-black text-xs uppercase tracking-widest mb-4">
-                      <Compass className="w-4 h-4" /> 今日靈感探索
-                    </div>
-                    <p className="text-2xl md:text-3xl font-bold text-slate-800 leading-relaxed max-w-3xl italic">
-                      「{dailyQuote || '加載靈感中...'}」
-                    </p>
-                    <div className="mt-6 flex items-center gap-4">
-                      <div className="flex items-center gap-2 text-slate-400 text-sm font-medium">
-                        <Heart className="w-4 h-4 text-rose-400 fill-rose-400" /> 持續理財，實現美好生活
+              
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+                {/* Daily Quote Card (Financial Context) */}
+                <div className="relative overflow-hidden bg-gradient-to-br from-indigo-50 to-blue-50 border border-blue-100 p-8 rounded-[2.5rem] shadow-sm group">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 text-blue-600 font-black text-[10px] uppercase tracking-widest mb-4">
+                        <Compass className="w-4 h-4" /> 財富與夢想探索
+                      </div>
+                      <p className="text-xl md:text-2xl font-bold text-slate-800 leading-relaxed italic h-24 overflow-y-auto">
+                        「{dailyQuote || '加載靈感中...'}」
+                      </p>
+                      <div className="mt-4 flex items-center gap-2 text-slate-400 text-xs font-medium">
+                        <RefreshCw className={`w-3 h-3 ${quoteLoading ? 'animate-spin' : ''}`} /> 點擊右側重新整理
                       </div>
                     </div>
+                    <button onClick={refreshQuote} disabled={quoteLoading} className="p-3 bg-white rounded-2xl shadow-sm text-blue-600 hover:scale-110 transition-all disabled:opacity-50">
+                      <RefreshCw className={`w-5 h-5 ${quoteLoading ? 'animate-spin' : ''}`} />
+                    </button>
                   </div>
-                  <button onClick={refreshQuote} disabled={quoteLoading} className="p-3 bg-white rounded-2xl shadow-sm text-blue-600 hover:scale-110 transition-all disabled:opacity-50">
-                    <RefreshCw className={`w-5 h-5 ${quoteLoading ? 'animate-spin' : ''}`} />
-                  </button>
+                </div>
+
+                {/* Positive Oasis Card (Purely Positive) */}
+                <div className="relative overflow-hidden bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-100 p-8 rounded-[2.5rem] shadow-sm group">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 text-orange-600 font-black text-[10px] uppercase tracking-widest mb-4">
+                        <Sun className="w-4 h-4" /> 今日心靈綠洲
+                      </div>
+                      <p className="text-xl md:text-2xl font-bold text-slate-800 leading-relaxed h-24 overflow-y-auto">
+                        {positiveQuote || '正在為您捕捉一道陽光...'}
+                      </p>
+                      <div className="mt-4 flex items-center gap-2 text-slate-400 text-xs font-medium">
+                        <Smile className="w-3 h-3 text-orange-400" /> 今天的你也很棒，加油！
+                      </div>
+                    </div>
+                    <button onClick={refreshPosQuote} disabled={posQuoteLoading} className="p-3 bg-white rounded-2xl shadow-sm text-orange-600 hover:scale-110 transition-all disabled:opacity-50">
+                      <RefreshCw className={`w-5 h-5 ${posQuoteLoading ? 'animate-spin' : ''}`} />
+                    </button>
+                  </div>
                 </div>
               </div>
 

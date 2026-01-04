@@ -9,13 +9,21 @@ const fallbackQuotes = [
   "把夢想放進預算單，你會發現每一筆儲蓄都充滿了幸福感。"
 ];
 
+const fallbackPositiveQuotes = [
+  "生活不一定每天都好，但每天都會有小好事在等你。",
+  "你現在的努力，是在為未來的驚喜鋪路。",
+  "願你眼裡有光，心裡有火，在平凡的生活中閃閃發亮。",
+  "世界很大，風景很美，最重要的是你今天過得開心。",
+  "別忘了，你也是某個人生命中的光呀。"
+];
+
 export const getDailyInspiration = async (): Promise<string> => {
   const apiKey = process.env.API_KEY;
   if (!apiKey || apiKey === "undefined") return fallbackQuotes[Math.floor(Math.random() * fallbackQuotes.length)];
 
   try {
     const ai = new GoogleGenAI({ apiKey });
-    const prompt = "請生成一句簡短且優美的繁體中文勵志語，結合『正向生活態度』與『具體的旅遊夢想或美好事物』（例如：挪威極光、日本富士山、地中海陽光、瑞士雪山等），目的是鼓勵使用者透過理財去實現這些美好。字數在 40 字以內，不要包含引號。";
+    const prompt = "請生成一句簡短且優美的繁體中文勵志語，結合『正向生活態度』與『具體的旅遊夢想或美好事物』（例如：挪威極光、日本富士山、地中海陽光等），目的是鼓勵使用者透過理財去實現這些美好。字數在 40 字以內，不要包含引號。";
     
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
@@ -24,6 +32,24 @@ export const getDailyInspiration = async (): Promise<string> => {
     return response.text?.trim() || fallbackQuotes[0];
   } catch (error) {
     return fallbackQuotes[Math.floor(Math.random() * fallbackQuotes.length)];
+  }
+};
+
+export const getPositiveQuote = async (): Promise<string> => {
+  const apiKey = process.env.API_KEY;
+  if (!apiKey || apiKey === "undefined") return fallbackPositiveQuotes[Math.floor(Math.random() * fallbackPositiveQuotes.length)];
+
+  try {
+    const ai = new GoogleGenAI({ apiKey });
+    const prompt = "請生成一句充滿溫暖、治癒感且完全與金錢、財務無關的繁體中文生活勵志語。內容可以是關於個人成長、勇氣、快樂或對生活的熱愛。字數在 30 字以內，語氣要溫和親切。不要包含引號。";
+    
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: prompt,
+    });
+    return response.text?.trim() || fallbackPositiveQuotes[0];
+  } catch (error) {
+    return fallbackPositiveQuotes[Math.floor(Math.random() * fallbackPositiveQuotes.length)];
   }
 };
 
@@ -75,15 +101,14 @@ export const getTaiwanStockAnalysis = async (): Promise<StockMarketData> => {
 
     return { ...data, sources };
   } catch (error) {
-    console.error("Stock Analysis Error:", error);
     return {
       topVolumes: [
         { name: "鴻海", volume: "15.2萬張", change: "+1.2%" },
         { name: "台積電", volume: "5.8萬張", change: "+0.5%" },
         { name: "群創", volume: "12.1萬張", change: "-0.2%" }
       ],
-      hotSectors: ["半導體", "AI 伺服器", "光電"],
-      summary: "台股近期受美股影響呈震盪格局，AI 權值股仍為市場重心，電子族群成交量能顯著增加，建議投資人注意個股支撐位。",
+      hotSectors: ["半導體", "AI 伺望器", "光電"],
+      summary: "台股近期受美股影響呈震盪格局，AI 權值股仍為市場重心，電子族群成交量能顯著增加。",
       sources: []
     };
   }
