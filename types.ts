@@ -21,6 +21,13 @@ export interface Transaction {
   date: string;
 }
 
+export interface StockMarketData {
+  topVolumes: { name: string; volume: string; change: string }[];
+  hotSectors: string[];
+  summary: string;
+  sources: { title: string; uri: string }[];
+}
+
 export interface UserProfile {
   uid: string;
   email: string;
